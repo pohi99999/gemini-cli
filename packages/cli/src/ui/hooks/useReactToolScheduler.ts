@@ -27,7 +27,6 @@ import type {
   IndividualToolCallDisplay,
 } from '../types.js';
 import { ToolCallStatus } from '../types.js';
-import { escapeAnsiCtrlCodes } from '../utils/textUtils.js';
 
 export type ScheduleFn = (
   request: ToolCallRequestInfo | ToolCallRequestInfo[],
@@ -306,6 +305,6 @@ export function mapToDisplay(
 
   return {
     type: 'tool_group',
-    tools: escapeAnsiCtrlCodes(toolDisplays),
+    tools: toolDisplays,
   };
 }

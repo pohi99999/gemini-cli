@@ -666,7 +666,8 @@ export const useGeminiStream = (
     ): Promise<StreamProcessingStatus> => {
       let geminiMessageBuffer = '';
       const toolCallRequests: ToolCallRequestInfo[] = [];
-      for await (const event of stream) {
+      for await (let event of stream) {
+        event = escapeAnsiCtrlCodes(event);
         switch (event.type) {
           case ServerGeminiEventType.Thought:
             setThought(event.value);
