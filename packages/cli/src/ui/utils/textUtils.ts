@@ -150,21 +150,20 @@ export const clearStringWidthCache = (): void => {
 
 const regex = ansiRegex();
 
-/**
- * Traverses a JSON object and escapes all ANSI control characters in its string
- * fields.
+/* Recursively traverses a JSON-like structure (objects, arrays, primitives)
+ * and escapes all ANSI control characters found in any string values.
  *
- * This function is designed to be more robust and future-proof than manually
- * escaping specific fields. It recursively traverses the JSON object and applies
- * the `escapeAnsiCtrl` function to all string values.
+ * This function is designed to be robust, handling deeply nested objects and
+ * arrays. It applies a regex-based replacement to all string values to
+ * safely escape control characters.
  *
- * To optimize performance, the function avoids creating a new object if no
- * string fields need to be escaped. It returns the original object in such
- * cases.
+ * To optimize performance, this function uses a "copy-on-write" strategy.
+ * It avoids allocating new objects or arrays if no nested string values
+ * required escaping, returning the original object reference in such cases.
  *
- * @param obj The JSON object to traverse and escape.
- * @returns A new JSON object with all string fields escaped, or the original
- *   object if no fields required escaping.
+ * @param obj The JSON-like value (object, array, string, etc.) to traverse.
+ * @returns A new value with all nested string fields escaped, or the
+ * original `obj` reference if no changes were necessary.
  */
 export function escapeAnsiCtrlCodes<T>(obj: T): T {
   if (typeof obj === 'string') {
@@ -178,23 +177,14 @@ export function escapeAnsiCtrlCodes<T>(obj: T): T {
   }
 
   let madeChanges = false;
-
   if (Array.isArray(obj)) {
     const newArr = [...obj];
     for (let i = 0; i < newArr.length; i++) {
       const value = newArr[i];
-      if (typeof value === 'string') {
-        const escapedValue = escapeAnsiCtrlCodes(value);
-        if (escapedValue !== value) {
-          newArr[i] = escapedValue;
-          madeChanges = true;
-        }
-      } else {
-        const escapedValue = escapeAnsiCtrlCodes(value);
-        if (escapedValue !== value) {
-          newArr[i] = escapedValue;
-          madeChanges = true;
-        }
+      const escapedValue = escapeAnsiCtrlCodes(value);
+      if (escapedValue !== value) {
+        newArr[i] = escapedValue;
+        madeChanges = true;
       }
     }
     return madeChanges ? (newArr as T) : obj;
@@ -204,18 +194,10 @@ export function escapeAnsiCtrlCodes<T>(obj: T): T {
   for (const key in newObj) {
     if (Object.prototype.hasOwnProperty.call(newObj, key)) {
       const value = newObj[key];
-      if (typeof value === 'string') {
-        const escapedValue = escapeAnsiCtrlCodes(value as string);
-        if (escapedValue !== value) {
-          (newObj as Record<string, unknown>)[key] = escapedValue;
-          madeChanges = true;
-        }
-      } else {
-        const escapedValue = escapeAnsiCtrlCodes(value);
-        if (escapedValue !== value) {
-          (newObj as Record<string, unknown>)[key] = escapedValue;
-          madeChanges = true;
-        }
+      const escapedValue = escapeAnsiCtrlCodes(value);
+      if (escapedValue !== value) {
+        (newObj as Record<string, unknown>)[key] = escapedValue;
+        madeChanges = true;
       }
     }
   }
