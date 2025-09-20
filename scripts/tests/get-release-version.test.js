@@ -17,7 +17,7 @@ describe('getVersion', () => {
   });
 
   const mockExecSync = (command) => {
-    // NPM Mocks - old dist-tag method (kept for backward compatibility)
+    // NPM dist-tags - source of truth
     if (command.includes('npm view') && command.includes('--tag=latest'))
       return '0.4.1';
     if (command.includes('npm view') && command.includes('--tag=preview'))
@@ -25,7 +25,7 @@ describe('getVersion', () => {
     if (command.includes('npm view') && command.includes('--tag=nightly'))
       return '0.6.0-nightly.20250910.a31830a3';
 
-    // NPM versions list - new semantic sorting method
+    // NPM versions list - for conflict validation
     if (command.includes('npm view') && command.includes('versions --json'))
       return JSON.stringify([
         '0.4.1',
@@ -33,11 +33,16 @@ describe('getVersion', () => {
         '0.6.0-nightly.20250910.a31830a3',
       ]);
 
-    // Git Tag Mocks - updated to use new command format
+    // Git Tag Mocks - with semantic sorting
     if (command.includes("git tag -l 'v[0-9].[0-9].[0-9]'")) return 'v0.4.1';
     if (command.includes("git tag -l 'v*-preview*'")) return 'v0.5.0-preview.2';
     if (command.includes("git tag -l 'v*-nightly*'"))
       return 'v0.6.0-nightly.20250910.a31830a3';
+
+    // Conflict validation - Git tag checks
+    if (command.includes("git tag -l 'v0.5.0'")) return ''; // Version doesn't exist yet
+    if (command.includes("git tag -l 'v0.4.2'")) return ''; // Version doesn't exist yet
+    if (command.includes("git tag -l 'v0.6.0-preview.0'")) return ''; // Version doesn't exist yet
 
     // GitHub Release Mocks
     if (command.includes('gh release view "v0.4.1"')) return 'v0.4.1';
@@ -157,20 +162,20 @@ describe('getVersion', () => {
   });
 
   describe('Semver Sorting Edge Cases', () => {
-    it('should demonstrate the current broken behavior with creation date sorting', () => {
-      const mockWithBrokenDateSorting = (command) => {
-        // NPM dist tags (old way - may be incorrectly tagged)
+    it('should handle Git tag creation date vs semantic version sorting', () => {
+      const mockWithSemverGitSorting = (command) => {
+        // NPM dist-tags are correct (source of truth)
         if (command.includes('npm view') && command.includes('--tag=latest'))
-          return '0.0.77'; // This is the problem - NPM dist-tag says 0.0.77 is "latest"
+          return '0.5.0'; // NPM correctly has 0.5.0 as latest
         if (command.includes('npm view') && command.includes('--tag=preview'))
           return '0.6.0-preview.2';
         if (command.includes('npm view') && command.includes('--tag=nightly'))
           return '0.7.0-nightly.20250910.a31830a3';
 
-        // NPM versions list (new way - semantic sorting will fix this)
+        // NPM versions list for conflict validation
         if (command.includes('npm view') && command.includes('versions --json'))
           return JSON.stringify([
-            '0.0.77',
+            '0.0.77', // This was the problematic dev version
             '0.4.1',
             '0.5.0',
             '0.6.0-preview.1',
@@ -178,65 +183,19 @@ describe('getVersion', () => {
             '0.7.0-nightly.20250910.a31830a3',
           ]);
 
-        // Git tags now use semver sorting - simulate multiple tags
+        // Git tags - test that semantic sorting works correctly
         if (command.includes("git tag -l 'v[0-9].[0-9].[0-9]'"))
-          return 'v0.0.77\nv0.5.0\nv0.4.1'; // Multiple tags to test sorting
-        if (command.includes("git tag --sort=-creatordate -l 'v*-preview*'"))
+          return 'v0.0.77\nv0.5.0\nv0.4.1'; // Multiple tags - should pick v0.5.0 semantically
+        if (command.includes("git tag -l 'v*-preview*'"))
           return 'v0.6.0-preview.2';
-        if (command.includes("git tag --sort=-creatordate -l 'v*-nightly*'"))
+        if (command.includes("git tag -l 'v*-nightly*'"))
           return 'v0.7.0-nightly.20250910.a31830a3';
 
-        // GitHub releases exist for the broken versions
-        if (command.includes('gh release view "v0.0.77"')) return 'v0.0.77';
-        if (command.includes('gh release view "v0.6.0-preview.2"'))
-          return 'v0.6.0-preview.2';
-        if (
-          command.includes('gh release view "v0.7.0-nightly.20250910.a31830a3"')
-        )
-          return 'v0.7.0-nightly.20250910.a31830a3';
+        // Conflict validation - new versions don't exist yet
+        if (command.includes("git tag -l 'v0.5.1'")) return '';
+        if (command.includes("git tag -l 'v0.6.0'")) return '';
 
-        // Git Hash Mock
-        if (command.includes('git rev-parse --short HEAD')) return 'd3bf8a3d';
-
-        return mockExecSync(command);
-      };
-
-      vi.mocked(execSync).mockImplementation(mockWithBrokenDateSorting);
-
-      // With our fix, this should now give correct results even with bad dist-tags
-      const patchResult = getVersion({ type: 'patch', 'patch-from': 'stable' });
-      expect(patchResult.releaseVersion).toBe('0.5.1'); // Fixed! Now correctly 0.5.1
-      expect(patchResult.previousReleaseTag).toBe('v0.5.0'); // Fixed! Now correctly v0.5.0
-
-      // Stable version calculation should also be correct
-      const stableResult = getVersion({ type: 'stable' });
-      expect(stableResult.releaseVersion).toBe('0.6.0'); // Still correct
-      expect(stableResult.previousReleaseTag).toBe('v0.5.0'); // Fixed! Now correctly v0.5.0
-    });
-
-    it('should handle mixed version ranges correctly with proper semver sorting', () => {
-      const mockWithCorrectSemverSorting = (command) => {
-        // This is what we want - NPM and Git should use semantic version sorting
-        if (command.includes('npm view') && command.includes('--tag=latest'))
-          return '0.5.0'; // Correct - semantically latest stable version
-        if (command.includes('npm view') && command.includes('--tag=preview'))
-          return '0.6.0-preview.2';
-        if (command.includes('npm view') && command.includes('--tag=nightly'))
-          return '0.7.0-nightly.20250910.a31830a3';
-
-        // Git tags should use semantic version sorting, not creation date
-        if (
-          command.includes(
-            "git tag --sort=-creatordate -l 'v[0-9].[0-9].[0-9]'",
-          )
-        )
-          return 'v0.5.0'; // Correct - should return semver latest, not date latest
-        if (command.includes("git tag --sort=-creatordate -l 'v*-preview*'"))
-          return 'v0.6.0-preview.2';
-        if (command.includes("git tag --sort=-creatordate -l 'v*-nightly*'"))
-          return 'v0.7.0-nightly.20250910.a31830a3';
-
-        // GitHub releases for correct versions
+        // GitHub releases
         if (command.includes('gh release view "v0.5.0"')) return 'v0.5.0';
         if (command.includes('gh release view "v0.6.0-preview.2"'))
           return 'v0.6.0-preview.2';
@@ -245,22 +204,29 @@ describe('getVersion', () => {
         )
           return 'v0.7.0-nightly.20250910.a31830a3';
 
+        // GitHub conflict validation - new versions don't exist
+        if (command.includes('gh release view "v0.5.1"'))
+          throw new Error('Not found');
+        if (command.includes('gh release view "v0.6.0"'))
+          throw new Error('Not found');
+
         // Git Hash Mock
         if (command.includes('git rev-parse --short HEAD')) return 'd3bf8a3d';
 
         return mockExecSync(command);
       };
 
-      vi.mocked(execSync).mockImplementation(mockWithCorrectSemverSorting);
+      vi.mocked(execSync).mockImplementation(mockWithSemverGitSorting);
 
-      // Test what we want the behavior to be
+      // Test patch calculation - should be 0.5.1 from NPM's latest=0.5.0
       const patchResult = getVersion({ type: 'patch', 'patch-from': 'stable' });
-      expect(patchResult.releaseVersion).toBe('0.5.1'); // Correct - patch from 0.5.0
-      expect(patchResult.previousReleaseTag).toBe('v0.5.0'); // Correct
+      expect(patchResult.releaseVersion).toBe('0.5.1');
+      expect(patchResult.previousReleaseTag).toBe('v0.5.0');
 
+      // Test stable calculation - should be 0.6.0 from preview
       const stableResult = getVersion({ type: 'stable' });
-      expect(stableResult.releaseVersion).toBe('0.6.0'); // Correct - from preview
-      expect(stableResult.previousReleaseTag).toBe('v0.5.0'); // Correct
+      expect(stableResult.releaseVersion).toBe('0.6.0');
+      expect(stableResult.previousReleaseTag).toBe('v0.5.0');
     });
 
     it('should fail when git tags are not semver-sorted correctly', () => {
@@ -269,24 +235,20 @@ describe('getVersion', () => {
         if (command.includes('npm view') && command.includes('--tag=latest'))
           return '0.5.0';
 
-        // But git tag sorting by creation date incorrectly returns 0.0.77
-        if (
-          command.includes(
-            "git tag --sort=-creatordate -l 'v[0-9].[0-9].[0-9]'",
-          )
-        )
-          return 'v0.0.77'; // This should cause a discrepancy error
+        // But git tag sorting returns wrong semantic version
+        if (command.includes("git tag -l 'v[0-9].[0-9].[0-9]'"))
+          return 'v0.4.1'; // This should cause a discrepancy error (NPM says 0.5.0)
 
         return mockExecSync(command);
       };
 
       vi.mocked(execSync).mockImplementation(mockWithIncorrectGitSorting);
 
-      // This should throw because NPM says 0.5.0 but git tag sorting says v0.0.77
+      // This should throw because NPM says 0.5.0 but git tag sorting says v0.4.1
       expect(() =>
         getVersion({ type: 'patch', 'patch-from': 'stable' }),
       ).toThrow(
-        'Discrepancy found! NPM latest tag (0.5.0) does not match latest git latest tag (v0.0.77).',
+        'Discrepancy found! NPM latest tag (0.5.0) does not match latest git latest tag (v0.4.1).',
       );
     });
   });
@@ -294,14 +256,14 @@ describe('getVersion', () => {
   describe('Failure Path - Discrepancy Checks', () => {
     it('should throw an error if the git tag does not match npm', () => {
       const mockWithMismatchGitTag = (command) => {
-        if (command.includes("git tag --sort=-creatordate -l 'v*-preview*'"))
-          return 'v0.4.0-preview-99'; // Mismatch
+        if (command.includes("git tag -l 'v*-preview*'"))
+          return 'v0.4.0-preview.99'; // Mismatch with NPM's 0.5.0-preview.2
         return mockExecSync(command);
       };
       vi.mocked(execSync).mockImplementation(mockWithMismatchGitTag);
 
       expect(() => getVersion({ type: 'stable' })).toThrow(
-        'Discrepancy found! NPM preview tag (0.5.0-preview.2) does not match latest git preview tag (v0.4.0-preview-99).',
+        'Discrepancy found! NPM preview tag (0.5.0-preview.2) does not match latest git preview tag (v0.4.0-preview.99).',
       );
     });
 

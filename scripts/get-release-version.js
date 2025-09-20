@@ -46,39 +46,10 @@ function getLatestTag(pattern) {
   }
 }
 
-function getLatestSemanticVersionFromNPM(npmDistTag) {
-  // Get all versions from NPM and filter/sort them semantically
-  const command = `npm view @google/gemini-cli versions --json`;
+function getVersionFromNPM(distTag) {
+  const command = `npm view @google/gemini-cli version --tag=${distTag}`;
   try {
-    const versionsJson = execSync(command).toString().trim();
-    const allVersions = JSON.parse(versionsJson);
-
-    // Filter versions that match the npmDistTag pattern and are valid semver
-    let matchingVersions;
-    if (npmDistTag === 'latest') {
-      // Stable versions: no prerelease identifiers
-      matchingVersions = allVersions.filter(
-        (v) => semver.valid(v) && !semver.prerelease(v),
-      );
-    } else if (npmDistTag === 'preview') {
-      // Preview versions: contain -preview
-      matchingVersions = allVersions.filter(
-        (v) => semver.valid(v) && v.includes('-preview'),
-      );
-    } else if (npmDistTag === 'nightly') {
-      // Nightly versions: contain -nightly
-      matchingVersions = allVersions.filter(
-        (v) => semver.valid(v) && v.includes('-nightly'),
-      );
-    } else {
-      return '';
-    }
-
-    if (matchingVersions.length === 0) return '';
-
-    // Sort by semver and return the latest
-    matchingVersions.sort((a, b) => semver.rcompare(a, b));
-    return matchingVersions[0];
+    return execSync(command).toString().trim();
   } catch {
     return '';
   }
@@ -100,9 +71,56 @@ function verifyGitHubReleaseExists(tagName) {
   }
 }
 
+function validateVersionConflicts(newVersion) {
+  // Check if the calculated version already exists in any of the 3 sources
+  const conflicts = [];
+
+  // Check NPM - get all published versions
+  try {
+    const command = `npm view @google/gemini-cli versions --json`;
+    const versionsJson = execSync(command).toString().trim();
+    const allVersions = JSON.parse(versionsJson);
+    if (allVersions.includes(newVersion)) {
+      conflicts.push(`NPM registry already has version ${newVersion}`);
+    }
+  } catch {
+    // Ignore NPM check failures for now
+  }
+
+  // Check Git tags
+  try {
+    const command = `git tag -l 'v${newVersion}'`;
+    const tagOutput = execSync(command).toString().trim();
+    if (tagOutput === `v${newVersion}`) {
+      conflicts.push(`Git tag v${newVersion} already exists`);
+    }
+  } catch {
+    // Ignore Git check failures for now
+  }
+
+  // Check GitHub releases
+  try {
+    const command = `gh release view "v${newVersion}" --json tagName --jq .tagName`;
+    const output = execSync(command).toString().trim();
+    if (output === `v${newVersion}`) {
+      conflicts.push(`GitHub release v${newVersion} already exists`);
+    }
+  } catch {
+    // This is expected if the release doesn't exist, so ignore
+  }
+
+  if (conflicts.length > 0) {
+    throw new Error(
+      `Version conflict! Cannot create ${newVersion}:\n${conflicts.join('\n')}`,
+    );
+  }
+}
+
 function getAndVerifyTags(npmDistTag, gitTagPattern) {
-  const latestVersion = getLatestSemanticVersionFromNPM(npmDistTag);
+  // NPM dist-tag is the source of truth for what version to use
+  const latestVersion = getVersionFromNPM(npmDistTag);
   const latestTag = getLatestTag(gitTagPattern);
+
   if (`v${latestVersion}` !== latestTag) {
     throw new Error(
       `Discrepancy found! NPM ${npmDistTag} tag (${latestVersion}) does not match latest git ${npmDistTag} tag (${latestTag}).`,
@@ -267,6 +285,9 @@ export function getVersion(options = {}) {
     default:
       throw new Error(`Unknown release type: ${type}`);
   }
+
+  // Validate that the calculated version doesn't conflict with existing versions
+  validateVersionConflicts(versionData.releaseVersion);
 
   return {
     releaseTag: `v${versionData.releaseVersion}`,
