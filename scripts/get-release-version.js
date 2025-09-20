@@ -41,7 +41,10 @@ function getLatestTag(pattern) {
 
     // Return the latest version with 'v' prefix restored
     return `v${versions[0]}`;
-  } catch {
+  } catch (error) {
+    console.error(
+      `Failed to get latest git tag for pattern "${pattern}": ${error.message}`,
+    );
     return '';
   }
 }
@@ -50,7 +53,10 @@ function getVersionFromNPM(distTag) {
   const command = `npm view @google/gemini-cli version --tag=${distTag}`;
   try {
     return execSync(command).toString().trim();
-  } catch {
+  } catch (error) {
+    console.error(
+      `Failed to get NPM version for dist-tag "${distTag}": ${error.message}`,
+    );
     return '';
   }
 }
@@ -60,7 +66,8 @@ function getAllVersionsFromNPM() {
   try {
     const versionsJson = execSync(command).toString().trim();
     return JSON.parse(versionsJson);
-  } catch {
+  } catch (error) {
+    console.error(`Failed to get all NPM versions: ${error.message}`);
     return [];
   }
 }
@@ -143,8 +150,10 @@ function validateVersionConflicts(newVersion) {
     if (allVersions.includes(newVersion)) {
       conflicts.push(`NPM registry already has version ${newVersion}`);
     }
-  } catch {
-    // Ignore NPM check failures for now
+  } catch (error) {
+    console.warn(
+      `Failed to check NPM versions for conflicts: ${error.message}`,
+    );
   }
 
   // Check Git tags
@@ -154,8 +163,8 @@ function validateVersionConflicts(newVersion) {
     if (tagOutput === `v${newVersion}`) {
       conflicts.push(`Git tag v${newVersion} already exists`);
     }
-  } catch {
-    // Ignore Git check failures for now
+  } catch (error) {
+    console.warn(`Failed to check git tags for conflicts: ${error.message}`);
   }
 
   // Check GitHub releases
@@ -165,8 +174,18 @@ function validateVersionConflicts(newVersion) {
     if (output === `v${newVersion}`) {
       conflicts.push(`GitHub release v${newVersion} already exists`);
     }
-  } catch {
-    // This is expected if the release doesn't exist, so ignore
+  } catch (error) {
+    // This is expected if the release doesn't exist - only warn on unexpected errors
+    const isExpectedNotFound =
+      error.message.includes('release not found') ||
+      error.message.includes('Not Found') ||
+      error.message.includes('not found') ||
+      error.status === 1; // gh command exit code for not found
+    if (!isExpectedNotFound) {
+      console.warn(
+        `Failed to check GitHub releases for conflicts: ${error.message}`,
+      );
+    }
   }
 
   if (conflicts.length > 0) {
@@ -212,7 +231,11 @@ function getAndVerifyTags(npmDistTag, gitTagPattern) {
           `Rollback scenario detected, but git tag v${baselineVersion} does not exist! This is required to calculate the next version.`,
         );
       }
-    } catch {
+    } catch (error) {
+      // If the git command itself failed, log the original error
+      console.error(
+        `Failed to check for git tag v${baselineVersion}: ${error.message}`,
+      );
       throw new Error(
         `Rollback scenario detected, but git tag v${baselineVersion} does not exist! This is required to calculate the next version.`,
       );
