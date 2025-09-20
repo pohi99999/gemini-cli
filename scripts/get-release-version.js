@@ -8,6 +8,7 @@
 
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 
 function getArgs() {
   const args = {};
@@ -21,18 +22,63 @@ function getArgs() {
 }
 
 function getLatestTag(pattern) {
-  const command = `git tag --sort=-creatordate -l '${pattern}' | head -n 1`;
+  const command = `git tag -l '${pattern}'`;
   try {
-    return execSync(command).toString().trim();
+    const tags = execSync(command)
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+    if (tags.length === 0) return '';
+
+    // Convert tags to versions (remove 'v' prefix) and sort by semver
+    const versions = tags
+      .map((tag) => tag.replace(/^v/, ''))
+      .filter((version) => semver.valid(version))
+      .sort((a, b) => semver.rcompare(a, b)); // rcompare for descending order
+
+    if (versions.length === 0) return '';
+
+    // Return the latest version with 'v' prefix restored
+    return `v${versions[0]}`;
   } catch {
     return '';
   }
 }
 
-function getVersionFromNPM(distTag) {
-  const command = `npm view @google/gemini-cli version --tag=${distTag}`;
+function getLatestSemanticVersionFromNPM(npmDistTag) {
+  // Get all versions from NPM and filter/sort them semantically
+  const command = `npm view @google/gemini-cli versions --json`;
   try {
-    return execSync(command).toString().trim();
+    const versionsJson = execSync(command).toString().trim();
+    const allVersions = JSON.parse(versionsJson);
+
+    // Filter versions that match the npmDistTag pattern and are valid semver
+    let matchingVersions;
+    if (npmDistTag === 'latest') {
+      // Stable versions: no prerelease identifiers
+      matchingVersions = allVersions.filter(
+        (v) => semver.valid(v) && !semver.prerelease(v),
+      );
+    } else if (npmDistTag === 'preview') {
+      // Preview versions: contain -preview
+      matchingVersions = allVersions.filter(
+        (v) => semver.valid(v) && v.includes('-preview'),
+      );
+    } else if (npmDistTag === 'nightly') {
+      // Nightly versions: contain -nightly
+      matchingVersions = allVersions.filter(
+        (v) => semver.valid(v) && v.includes('-nightly'),
+      );
+    } else {
+      return '';
+    }
+
+    if (matchingVersions.length === 0) return '';
+
+    // Sort by semver and return the latest
+    matchingVersions.sort((a, b) => semver.rcompare(a, b));
+    return matchingVersions[0];
   } catch {
     return '';
   }
@@ -55,7 +101,7 @@ function verifyGitHubReleaseExists(tagName) {
 }
 
 function getAndVerifyTags(npmDistTag, gitTagPattern) {
-  const latestVersion = getVersionFromNPM(npmDistTag);
+  const latestVersion = getLatestSemanticVersionFromNPM(npmDistTag);
   const latestTag = getLatestTag(gitTagPattern);
   if (`v${latestVersion}` !== latestTag) {
     throw new Error(

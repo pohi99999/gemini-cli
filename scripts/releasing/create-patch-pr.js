@@ -270,7 +270,7 @@ function getLatestReleaseInfo(channel) {
     console.log(`Next ${channel} version would be: ${result.releaseVersion}`);
     return {
       currentTag: result.previousReleaseTag,
-      nextVersion: result.releaseVersion
+      nextVersion: result.releaseVersion,
     };
   } catch (err) {
     console.error(`Failed to get release info for channel: ${channel}`);
