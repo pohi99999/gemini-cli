@@ -55,6 +55,66 @@ function getVersionFromNPM(distTag) {
   }
 }
 
+function getAllVersionsFromNPM() {
+  const command = `npm view @google/gemini-cli versions --json`;
+  try {
+    const versionsJson = execSync(command).toString().trim();
+    return JSON.parse(versionsJson);
+  } catch {
+    return [];
+  }
+}
+
+function detectRollbackAndGetBaseline(npmDistTag) {
+  // Get the current dist-tag version
+  const distTagVersion = getVersionFromNPM(npmDistTag);
+  if (!distTagVersion) return { baseline: '', isRollback: false };
+
+  // Get all published versions
+  const allVersions = getAllVersionsFromNPM();
+  if (allVersions.length === 0)
+    return { baseline: distTagVersion, isRollback: false };
+
+  // Filter versions by type to match the dist-tag
+  let matchingVersions;
+  if (npmDistTag === 'latest') {
+    // Stable versions: no prerelease identifiers
+    matchingVersions = allVersions.filter(
+      (v) => semver.valid(v) && !semver.prerelease(v),
+    );
+  } else if (npmDistTag === 'preview') {
+    // Preview versions: contain -preview
+    matchingVersions = allVersions.filter(
+      (v) => semver.valid(v) && v.includes('-preview'),
+    );
+  } else if (npmDistTag === 'nightly') {
+    // Nightly versions: contain -nightly
+    matchingVersions = allVersions.filter(
+      (v) => semver.valid(v) && v.includes('-nightly'),
+    );
+  } else {
+    // For other dist-tags, just use the dist-tag version
+    return { baseline: distTagVersion, isRollback: false };
+  }
+
+  if (matchingVersions.length === 0)
+    return { baseline: distTagVersion, isRollback: false };
+
+  // Sort by semver and get the highest existing version
+  matchingVersions.sort((a, b) => semver.rcompare(a, b));
+  const highestExistingVersion = matchingVersions[0];
+
+  // Check if we're in a rollback scenario
+  const isRollback = semver.gt(highestExistingVersion, distTagVersion);
+
+  return {
+    baseline: isRollback ? highestExistingVersion : distTagVersion,
+    isRollback,
+    distTagVersion,
+    highestExistingVersion,
+  };
+}
+
 function verifyGitHubReleaseExists(tagName) {
   const command = `gh release view "${tagName}" --json tagName --jq .tagName`;
   try {
@@ -117,21 +177,60 @@ function validateVersionConflicts(newVersion) {
 }
 
 function getAndVerifyTags(npmDistTag, gitTagPattern) {
-  // NPM dist-tag is the source of truth for what version to use
-  const latestVersion = getVersionFromNPM(npmDistTag);
+  // Detect rollback scenarios and get the correct baseline
+  const rollbackInfo = detectRollbackAndGetBaseline(npmDistTag);
+  const baselineVersion = rollbackInfo.baseline;
+
+  if (!baselineVersion) {
+    throw new Error(`Unable to determine baseline version for ${npmDistTag}`);
+  }
+
   const latestTag = getLatestTag(gitTagPattern);
 
-  if (`v${latestVersion}` !== latestTag) {
-    throw new Error(
-      `Discrepancy found! NPM ${npmDistTag} tag (${latestVersion}) does not match latest git ${npmDistTag} tag (${latestTag}).`,
+  // In rollback scenarios, we don't require git tags to match the dist-tag
+  // Instead, we verify the baseline version exists as a git tag
+  if (!rollbackInfo.isRollback) {
+    // Normal scenario: NPM dist-tag should match latest git tag
+    if (`v${baselineVersion}` !== latestTag) {
+      throw new Error(
+        `Discrepancy found! NPM ${npmDistTag} tag (${baselineVersion}) does not match latest git ${npmDistTag} tag (${latestTag}).`,
+      );
+    }
+  } else {
+    // Rollback scenario: warn about the rollback but don't fail
+    console.warn(
+      `Rollback detected! NPM ${npmDistTag} tag is ${rollbackInfo.distTagVersion}, but using ${baselineVersion} as baseline for next version calculation (highest existing version).`,
     );
+
+    // Verify the baseline version has corresponding git tag
+    try {
+      const baselineTagExists = execSync(`git tag -l 'v${baselineVersion}'`)
+        .toString()
+        .trim();
+      if (baselineTagExists !== `v${baselineVersion}`) {
+        throw new Error(
+          `Rollback scenario detected, but git tag v${baselineVersion} does not exist! This is required to calculate the next version.`,
+        );
+      }
+    } catch {
+      throw new Error(
+        `Rollback scenario detected, but git tag v${baselineVersion} does not exist! This is required to calculate the next version.`,
+      );
+    }
   }
-  verifyGitHubReleaseExists(latestTag);
-  return { latestVersion, latestTag };
+
+  // Always verify GitHub release exists for the baseline version (not necessarily the dist-tag)
+  verifyGitHubReleaseExists(`v${baselineVersion}`);
+
+  return {
+    latestVersion: baselineVersion,
+    latestTag: `v${baselineVersion}`,
+    rollbackInfo,
+  };
 }
 
 function getNightlyVersion() {
-  const { latestVersion, latestTag } = getAndVerifyTags(
+  const { latestVersion, latestTag, rollbackInfo } = getAndVerifyTags(
     'nightly',
     'v*-nightly*',
   );
@@ -146,6 +245,7 @@ function getNightlyVersion() {
     releaseVersion: `${major}.${nextMinor}.0-nightly.${date}.${gitShortHash}`,
     npmTag: 'nightly',
     previousReleaseTag: latestTag,
+    rollbackInfo,
   };
 }
 
@@ -176,7 +276,7 @@ function getStableVersion(args) {
     releaseVersion = latestPreviewVersion.replace(/-preview.*/, '');
   }
 
-  const { latestTag: previousStableTag } = getAndVerifyTags(
+  const { latestTag: previousStableTag, rollbackInfo } = getAndVerifyTags(
     'latest',
     'v[0-9].[0-9].[0-9]',
   );
@@ -185,6 +285,7 @@ function getStableVersion(args) {
     releaseVersion,
     npmTag: 'latest',
     previousReleaseTag: previousStableTag,
+    rollbackInfo,
   };
 }
 
@@ -207,7 +308,7 @@ function getPreviewVersion(args) {
       latestNightlyVersion.replace(/-nightly.*/, '') + '-preview.0';
   }
 
-  const { latestTag: previousPreviewTag } = getAndVerifyTags(
+  const { latestTag: previousPreviewTag, rollbackInfo } = getAndVerifyTags(
     'preview',
     'v*-preview*',
   );
@@ -216,6 +317,7 @@ function getPreviewVersion(args) {
     releaseVersion,
     npmTag: 'preview',
     previousReleaseTag: previousPreviewTag,
+    rollbackInfo,
   };
 }
 
@@ -227,7 +329,10 @@ function getPatchVersion(patchFrom) {
   }
   const distTag = patchFrom === 'stable' ? 'latest' : 'preview';
   const pattern = distTag === 'latest' ? 'v[0-9].[0-9].[0-9]' : 'v*-preview*';
-  const { latestVersion, latestTag } = getAndVerifyTags(distTag, pattern);
+  const { latestVersion, latestTag, rollbackInfo } = getAndVerifyTags(
+    distTag,
+    pattern,
+  );
 
   if (patchFrom === 'stable') {
     // For stable versions, increment the patch number: 0.5.4 -> 0.5.5
@@ -240,6 +345,7 @@ function getPatchVersion(patchFrom) {
       releaseVersion,
       npmTag: distTag,
       previousReleaseTag: latestTag,
+      rollbackInfo,
     };
   } else {
     // For preview versions, increment the preview number: 0.6.0-preview.2 -> 0.6.0-preview.3
@@ -260,6 +366,7 @@ function getPatchVersion(patchFrom) {
       releaseVersion,
       npmTag: distTag,
       previousReleaseTag: latestTag,
+      rollbackInfo,
     };
   }
 }
@@ -289,10 +396,24 @@ export function getVersion(options = {}) {
   // Validate that the calculated version doesn't conflict with existing versions
   validateVersionConflicts(versionData.releaseVersion);
 
-  return {
+  // Include rollback information in the output if available
+  const result = {
     releaseTag: `v${versionData.releaseVersion}`,
     ...versionData,
   };
+
+  // Add rollback information to output if it exists
+  if (versionData.rollbackInfo && versionData.rollbackInfo.isRollback) {
+    result.rollbackDetected = {
+      rollbackScenario: true,
+      distTagVersion: versionData.rollbackInfo.distTagVersion,
+      highestExistingVersion: versionData.rollbackInfo.highestExistingVersion,
+      baselineUsed: versionData.rollbackInfo.baseline,
+      message: `Rollback detected: NPM tag was ${versionData.rollbackInfo.distTagVersion}, but using ${versionData.rollbackInfo.baseline} as baseline for next version calculation (highest existing version)`,
+    };
+  }
+
+  return result;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
