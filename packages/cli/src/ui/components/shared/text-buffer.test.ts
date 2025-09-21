@@ -21,6 +21,14 @@ import {
   findWordEndInLine,
   findNextWordStartInLine,
   isWordCharStrict,
+  isWhitespace,
+  isCombiningMark,
+  isWordCharWithCombining,
+  getCharScript,
+  isDifferentScript,
+  findPrevWordStartInLine,
+  findNextWordAcrossLines,
+  findPrevWordAcrossLines,
 } from './text-buffer.js';
 import { cpLen } from '../../utils/textUtils.js';
 
@@ -1946,6 +1954,278 @@ describe('Unicode helper functions', () => {
     it('should handle Chinese and Arabic text', () => {
       expect(cpLen('hello 你好 world')).toBe(14); // 5 + 1 + 2 + 1 + 5 = 14
       expect(cpLen('hello مرحبا world')).toBe(17);
+    });
+  });
+
+  describe('New Word Navigation Functions', () => {
+    describe('isWhitespace', () => {
+      it('should identify whitespace characters correctly', () => {
+        expect(isWhitespace(' ')).toBe(true);
+        expect(isWhitespace('\t')).toBe(true);
+        expect(isWhitespace('\n')).toBe(true);
+        expect(isWhitespace('\r')).toBe(true);
+        expect(isWhitespace('a')).toBe(false);
+        expect(isWhitespace('.')).toBe(false);
+      });
+    });
+
+    describe('isCombiningMark', () => {
+      it('should identify combining marks', () => {
+        expect(isCombiningMark('\u0301')).toBe(true); // Combining acute accent
+        expect(isCombiningMark('\u0300')).toBe(true); // Combining grave accent
+        expect(isCombiningMark('\u0308')).toBe(true); // Combining diaeresis
+        expect(isCombiningMark('a')).toBe(false);
+        expect(isCombiningMark('é')).toBe(false); // Precomposed character
+      });
+    });
+
+    describe('isWordCharWithCombining', () => {
+      it('should identify word characters including combining marks', () => {
+        expect(isWordCharWithCombining('a')).toBe(true);
+        expect(isWordCharWithCombining('\u0301')).toBe(true); // Combining mark
+        expect(isWordCharWithCombining(' ')).toBe(false);
+        expect(isWordCharWithCombining('.')).toBe(false);
+      });
+    });
+
+    describe('getCharScript', () => {
+      it('should identify character scripts correctly', () => {
+        expect(getCharScript('a')).toBe('latin');
+        expect(getCharScript('Z')).toBe('latin');
+        expect(getCharScript('é')).toBe('latin');
+        expect(getCharScript('中')).toBe('han');
+        expect(getCharScript('文')).toBe('han');
+        expect(getCharScript('あ')).toBe('hiragana');
+        expect(getCharScript('カ')).toBe('katakana');
+        expect(getCharScript('ا')).toBe('arabic');
+        expect(getCharScript('д')).toBe('cyrillic');
+        expect(getCharScript('א')).toBe('other'); // Hebrew
+      });
+    });
+
+    describe('isDifferentScript', () => {
+      it('should detect script boundaries', () => {
+        expect(isDifferentScript('a', 'b')).toBe(false); // Both Latin
+        expect(isDifferentScript('a', '中')).toBe(true); // Latin vs Han
+        expect(isDifferentScript('中', '文')).toBe(false); // Both Han
+        expect(isDifferentScript('あ', 'カ')).toBe(true); // Hiragana vs Katakana
+        // Non-word characters don't have script boundaries
+        expect(isDifferentScript(' ', 'a')).toBe(false);
+        expect(isDifferentScript('a', ' ')).toBe(false);
+      });
+    });
+
+    describe('findNextWordStartInLine with script boundaries', () => {
+      it('should handle script boundaries correctly', () => {
+        expect(findNextWordStartInLine('hello中文world', 0)).toBe(5); // Stop at Latin->Han
+        expect(findNextWordStartInLine('hello中文world', 5)).toBe(7); // Stop at Han->Latin
+        expect(findNextWordStartInLine('あいうカキク', 0)).toBe(3); // Stop at Hiragana->Katakana
+      });
+
+      it('should handle mixed scripts with spaces', () => {
+        expect(findNextWordStartInLine('hello 中文 world', 0)).toBe(6);
+        expect(findNextWordStartInLine('hello 中文 world', 6)).toBe(9);
+      });
+    });
+
+    describe('findPrevWordStartInLine extended tests', () => {
+      it('should find previous word in basic text', () => {
+        expect(findPrevWordStartInLine('hello world', 11)).toBe(6);
+        expect(findPrevWordStartInLine('hello world', 8)).toBe(6);
+        expect(findPrevWordStartInLine('hello world', 6)).toBe(0);
+      });
+
+      it('should handle punctuation sequences', () => {
+        expect(findPrevWordStartInLine('hello, world', 12)).toBe(7);
+        expect(findPrevWordStartInLine('hello... world', 14)).toBe(9);
+        expect(findPrevWordStartInLine('...hello', 8)).toBe(3);
+      });
+
+      it('should handle script boundaries', () => {
+        expect(findPrevWordStartInLine('hello中文world', 12)).toBe(7); // From end to Latin
+        expect(findPrevWordStartInLine('hello中文world', 7)).toBe(5); // From Latin to Han
+        expect(findPrevWordStartInLine('hello中文world', 5)).toBe(0); // From Han to Latin
+      });
+
+      it('should handle edge cases', () => {
+        expect(findPrevWordStartInLine('', 0)).toBe(null);
+        expect(findPrevWordStartInLine('hello', 0)).toBe(null);
+        expect(findPrevWordStartInLine('   hello', 3)).toBe(null);
+      });
+    });
+
+    describe('findWordEndInLine extended tests', () => {
+      it('should handle script boundaries', () => {
+        expect(findWordEndInLine('hello中文world', 0)).toBe(4); // Stop at Latin->Han
+        expect(findWordEndInLine('hello中文world', 5)).toBe(6); // Stop at Han->Latin
+        expect(findWordEndInLine('あいうカキク', 0)).toBe(2); // Stop at Hiragana->Katakana
+      });
+
+      it('should advance from word end to next word', () => {
+        expect(findWordEndInLine('hello world test', 4)).toBe(10); // From end of "hello" to end of "world"
+        expect(findWordEndInLine('hello, world', 4)).toBe(5); // From end of "hello" to comma
+      });
+
+      it('should handle punctuation sequences', () => {
+        expect(findWordEndInLine('...hello', 0)).toBe(2); // End of punctuation
+        expect(findWordEndInLine('...hello', 3)).toBe(7); // From start of "hello"
+      });
+    });
+
+    describe('findNextWordAcrossLines', () => {
+      it('should find next word within current line', () => {
+        const lines = ['hello world', 'test line'];
+        expect(findNextWordAcrossLines(lines, 0, 0, true)).toEqual({
+          row: 0,
+          col: 6,
+        });
+        expect(findNextWordAcrossLines(lines, 0, 0, false)).toEqual({
+          row: 0,
+          col: 4,
+        });
+      });
+
+      it('should move to next line when needed', () => {
+        const lines = ['hello', 'world'];
+        expect(findNextWordAcrossLines(lines, 0, 3, true)).toEqual({
+          row: 1,
+          col: 0,
+        });
+        expect(findNextWordAcrossLines(lines, 0, 5, true)).toEqual({
+          row: 1,
+          col: 0,
+        });
+      });
+
+      it('should handle empty lines', () => {
+        const lines = ['hello', '', 'world'];
+        expect(findNextWordAcrossLines(lines, 0, 3, true)).toEqual({
+          row: 2,
+          col: 0,
+        });
+      });
+
+      it('should handle script boundaries across lines', () => {
+        const lines = ['hello中文', 'world'];
+        expect(findNextWordAcrossLines(lines, 0, 0, true)).toEqual({
+          row: 0,
+          col: 5,
+        });
+        expect(findNextWordAcrossLines(lines, 0, 5, true)).toEqual({
+          row: 1,
+          col: 0,
+        });
+      });
+
+      it('should return null when no more words', () => {
+        const lines = ['hello', 'world'];
+        expect(findNextWordAcrossLines(lines, 1, 3, true)).toBe(null);
+      });
+    });
+
+    describe('findPrevWordAcrossLines', () => {
+      it('should find previous word within current line', () => {
+        const lines = ['hello world', 'test line'];
+        expect(findPrevWordAcrossLines(lines, 0, 11)).toEqual({
+          row: 0,
+          col: 6,
+        });
+        expect(findPrevWordAcrossLines(lines, 0, 8)).toEqual({
+          row: 0,
+          col: 6,
+        });
+      });
+
+      it('should move to previous line when needed', () => {
+        const lines = ['hello', 'world'];
+        expect(findPrevWordAcrossLines(lines, 1, 0)).toEqual({
+          row: 0,
+          col: 0,
+        });
+        expect(findPrevWordAcrossLines(lines, 1, 2)).toEqual({
+          row: 1,
+          col: 0,
+        });
+      });
+
+      it('should handle empty lines', () => {
+        const lines = ['hello', '', 'world'];
+        expect(findPrevWordAcrossLines(lines, 2, 0)).toEqual({
+          row: 0,
+          col: 0,
+        });
+      });
+
+      it('should handle script boundaries across lines', () => {
+        const lines = ['hello', '中文world'];
+        expect(findPrevWordAcrossLines(lines, 1, 7)).toEqual({
+          row: 1,
+          col: 2,
+        });
+        expect(findPrevWordAcrossLines(lines, 1, 2)).toEqual({
+          row: 1,
+          col: 0,
+        });
+        expect(findPrevWordAcrossLines(lines, 1, 0)).toEqual({
+          row: 0,
+          col: 0,
+        });
+      });
+
+      it('should return null at beginning', () => {
+        const lines = ['hello', 'world'];
+        expect(findPrevWordAcrossLines(lines, 0, 0)).toBe(null);
+      });
+    });
+
+    describe('Complex real-world scenarios', () => {
+      it('should handle code with mixed identifiers', () => {
+        const code = 'const myVar_123 = getValue();';
+        expect(findNextWordStartInLine(code, 0)).toBe(6); // "myVar_123"
+        expect(findNextWordStartInLine(code, 6)).toBe(11); // skip to first non-word char "="
+        expect(findWordEndInLine(code, 6)).toBe(10); // End of "myVar"
+      });
+
+      it('should handle markdown-like text', () => {
+        const markdown = '## Hello **world** test';
+        expect(findNextWordStartInLine(markdown, 0)).toBe(3); // Skip "##"
+        expect(findNextWordStartInLine(markdown, 3)).toBe(9); // Skip to "**"
+        expect(findNextWordStartInLine(markdown, 11)).toBe(16); // To "test"
+      });
+
+      it('should handle file paths', () => {
+        const path = '/usr/local/bin/node';
+        expect(findNextWordStartInLine(path, 1)).toBe(4); // "usr"
+        expect(findNextWordStartInLine(path, 4)).toBe(5); // "local"
+        expect(findNextWordStartInLine(path, 5)).toBe(10); // "bin"
+      });
+
+      it('should handle mixed language text', () => {
+        const mixed = 'The word 中文 means Chinese';
+        expect(findNextWordStartInLine(mixed, 0)).toBe(4); // "word"
+        expect(findNextWordStartInLine(mixed, 4)).toBe(9); // "中文"
+        expect(findNextWordStartInLine(mixed, 9)).toBe(12); // "means"
+        expect(findWordEndInLine(mixed, 9)).toBe(10); // End of "中文"
+        expect(findPrevWordStartInLine(mixed, 14)).toBe(12); // Back to "means"
+      });
+
+      it('should handle emoji and special characters', () => {
+        // Emoji are typically not word characters
+        expect(isWordCharStrict('😀')).toBe(false);
+        expect(isWordCharStrict('👍')).toBe(false);
+        // Should skip over emoji like punctuation
+        expect(findNextWordStartInLine('hello 😀 world', 0)).toBe(6);
+      });
+
+      it('should handle right-to-left scripts', () => {
+        // Hebrew and Arabic characters should be recognized as word characters
+        expect(isWordCharStrict('ש')).toBe(true); // Hebrew
+        expect(isWordCharStrict('م')).toBe(true); // Arabic
+
+        const mixed = 'hello שלום world';
+        expect(findNextWordStartInLine(mixed, 0)).toBe(6); // To Hebrew word
+        expect(findNextWordStartInLine(mixed, 6)).toBe(11); // To "world"
+      });
     });
   });
 });
