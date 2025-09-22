@@ -98,4 +98,56 @@ describe('ServiceAccountImpersonationProvider', () => {
       },
     });
   });
+
+  it('should return a cached token if it is not expired', async () => {
+    const provider = new ServiceAccountImpersonationProvider(defaultSAConfig);
+    vi.useFakeTimers();
+
+    // jwt payload with exp set to 1 hour from now
+    const payload = { exp: Math.floor(Date.now() / 1000) + 3600 };
+    const jwt = `header.${Buffer.from(JSON.stringify(payload)).toString('base64')}.signature`;
+    mockRequest.mockResolvedValue({ data: { token: jwt } });
+
+    const firstTokens = await provider.tokens();
+    expect(firstTokens?.access_token).toBe(jwt);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+
+    // Advance time by 30 minutes
+    vi.advanceTimersByTime(1800 * 1000);
+
+    // Seturn cached token
+    const secondTokens = await provider.tokens();
+    expect(secondTokens).toBe(firstTokens);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
+  it('should fetch a new token if the cached token is expired (using fake timers)', async () => {
+    const provider = new ServiceAccountImpersonationProvider(defaultSAConfig);
+    vi.useFakeTimers();
+
+    // Get and cache a token that expires in 1 second
+    const expiredPayload = { exp: Math.floor(Date.now() / 1000) + 1 };
+    const expiredJwt = `header.${Buffer.from(JSON.stringify(expiredPayload)).toString('base64')}.signature`;
+
+    mockRequest.mockResolvedValue({ data: { token: expiredJwt } });
+    const firstTokens = await provider.tokens();
+    expect(firstTokens?.access_token).toBe(expiredJwt);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+
+    // Prepare the mock for the *next* call
+    const newPayload = { exp: Math.floor(Date.now() / 1000) + 3600 };
+    const newJwt = `header.${Buffer.from(JSON.stringify(newPayload)).toString('base64')}.signature`;
+    mockRequest.mockResolvedValue({ data: { token: newJwt } });
+
+    vi.advanceTimersByTime(1001);
+
+    const newTokens = await provider.tokens();
+    expect(newTokens?.access_token).toBe(newJwt);
+    expect(newTokens?.access_token).not.toBe(expiredJwt);
+    expect(mockRequest).toHaveBeenCalledTimes(2); // Confirms a new fetch
+
+    vi.useRealTimers();
+  });
 });

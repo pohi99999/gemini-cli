@@ -14,6 +14,8 @@ import { GoogleAuth } from 'google-auth-library';
 import type { MCPServerConfig } from '../config/config.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 
+const fiveMinBufferMs = 5 * 60 * 1000;
+
 function createIamApiUrl(targetSA: string): string {
   return `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(targetSA)}:generateIdToken`;
 }
@@ -24,6 +26,8 @@ export class ServiceAccountImpersonationProvider
   private readonly targetServiceAccount: string;
   private readonly targetAudience: string; // OAuth Client Id
   private readonly auth: GoogleAuth;
+  private cachedToken?: OAuthTokens;
+  private tokenExpiryTime?: number;
 
   // Properties required by OAuthClientProvider, with no-op values
   readonly redirectUrl = '';
@@ -70,37 +74,64 @@ export class ServiceAccountImpersonationProvider
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
+    // 1. Check if we have a valid, non-expired cached token.
+    if (
+      this.cachedToken &&
+      this.tokenExpiryTime &&
+      Date.now() < this.tokenExpiryTime - fiveMinBufferMs
+    ) {
+      return this.cachedToken;
+    }
+
+    // 2. Clear any invalid/expired cache.
+    this.cachedToken = undefined;
+    this.tokenExpiryTime = undefined;
+
+    // 3. Fetch a new ID token.
+    const client = await this.auth.getClient();
+    const url = createIamApiUrl(this.targetServiceAccount);
+
+    let idToken: string;
+    try {
+      const res = await client.request<{ token: string }>({
+        url,
+        method: 'POST',
+        data: {
+          audience: this.targetAudience,
+          includeEmail: true,
+        },
+      });
+      idToken = res.data.token;
+
+      if (!idToken || idToken.length === 0) {
+        console.error('Failed to get ID token from Google');
+        return undefined;
+      }
+    } catch (e) {
+      console.error('Failed to fetch ID token from Google:', e);
+      return undefined;
+    }
+
+    const expiryTime = this.parseTokenExpiry(idToken);
     // Note: We are placing the OIDC ID Token into the `access_token` field.
     // This is because the CLI uses this field to construct the
     // `Authorization: Bearer <token>` header, which is the correct way to
     // present an ID token.
-    const client = await this.auth.getClient();
-    const url = createIamApiUrl(this.targetServiceAccount);
-
-    const res = await client.request<{ token: string }>({
-      url,
-      method: 'POST',
-      data: {
-        audience: this.targetAudience,
-        includeEmail: true,
-      },
-    });
-    const idToken = res.data.token;
-
-    if (!idToken || idToken.length === 0) {
-      console.error('Failed to get ID token from Google');
-      return undefined;
-    }
-
-    const tokens: OAuthTokens = {
+    const newTokens: OAuthTokens = {
       access_token: idToken,
       token_type: 'Bearer',
     };
-    return tokens;
+
+    if (expiryTime) {
+      this.tokenExpiryTime = expiryTime;
+      this.cachedToken = newTokens;
+    }
+
+    return newTokens;
   }
 
   saveTokens(_tokens: OAuthTokens): void {
-    // No-op, ADC manages tokens.
+    // No-op
   }
 
   redirectToAuthorization(_authorizationUrl: URL): void {
@@ -114,5 +145,27 @@ export class ServiceAccountImpersonationProvider
   codeVerifier(): string {
     // No-op
     return '';
+  }
+
+  /**
+   * Parses a JWT string to extract its expiry time.
+   * @param idToken The JWT ID token.
+   * @returns The expiry time in **milliseconds**, or undefined if parsing fails.
+   */
+  private parseTokenExpiry(idToken: string): number | undefined {
+    try {
+      const payload = JSON.parse(
+        Buffer.from(idToken.split('.')[1], 'base64').toString(),
+      );
+
+      if (payload && typeof payload.exp === 'number') {
+        return payload.exp * 1000; // Convert seconds to milliseconds
+      }
+    } catch (e) {
+      console.error('Failed to parse ID token for expiry time with error:', e);
+    }
+
+    // Return undefined if try block fails or 'exp' is missing/invalid
+    return undefined;
   }
 }
