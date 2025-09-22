@@ -167,6 +167,11 @@ const regex = ansiRegex();
  */
 export function escapeAnsiCtrlCodes<T>(obj: T): T {
   if (typeof obj === 'string') {
+    if (obj.search(regex) === -1) {
+      return obj; // No changes return original string
+    }
+
+    regex.lastIndex = 0; // needed for global regex
     return obj.replace(regex, (match) =>
       JSON.stringify(match).slice(1, -1),
     ) as T;
@@ -176,31 +181,36 @@ export function escapeAnsiCtrlCodes<T>(obj: T): T {
     return obj;
   }
 
-  let madeChanges = false;
   if (Array.isArray(obj)) {
-    const newArr = [...obj];
-    for (let i = 0; i < newArr.length; i++) {
-      const value = newArr[i];
+    let newArr: unknown[] | null = null;
+
+    for (let i = 0; i < obj.length; i++) {
+      const value = obj[i];
       const escapedValue = escapeAnsiCtrlCodes(value);
       if (escapedValue !== value) {
+        if (newArr === null) {
+          newArr = [...obj];
+        }
         newArr[i] = escapedValue;
-        madeChanges = true;
       }
     }
-    return madeChanges ? (newArr as T) : obj;
+    return (newArr !== null ? newArr : obj) as T;
   }
 
-  const newObj = { ...obj };
-  for (const key in newObj) {
-    if (Object.prototype.hasOwnProperty.call(newObj, key)) {
-      const value = newObj[key];
-      const escapedValue = escapeAnsiCtrlCodes(value);
-      if (escapedValue !== value) {
-        (newObj as Record<string, unknown>)[key] = escapedValue;
-        madeChanges = true;
+  let newObj: T | null = null;
+  const keys = Object.keys(obj);
+
+  for (const key of keys) {
+    const value = (obj as Record<string, unknown>)[key];
+    const escapedValue = escapeAnsiCtrlCodes(value);
+
+    if (escapedValue !== value) {
+      if (newObj === null) {
+        newObj = { ...obj };
       }
+      (newObj as Record<string, unknown>)[key] = escapedValue;
     }
   }
 
-  return madeChanges ? newObj : obj;
+  return newObj !== null ? newObj : obj;
 }

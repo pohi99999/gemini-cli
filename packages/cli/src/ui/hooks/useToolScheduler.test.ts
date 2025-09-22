@@ -1025,7 +1025,7 @@ describe('mapToDisplay', () => {
           extraProps?.tool?.isOutputMarkdown ?? false,
         );
         if (status === 'awaiting_approval') {
-          expect(toolDisplay.confirmationDetails).toStrictEqual(
+          expect(toolDisplay.confirmationDetails).toBe(
             extraProps!.confirmationDetails,
           );
         } else {
