@@ -5,6 +5,7 @@
  */
 
 import type React from 'react';
+import { useMemo } from 'react';
 import { escapeAnsiCtrlCodes } from '../utils/textUtils.js';
 import type { HistoryItem } from '../types.js';
 import { UserMessage } from './messages/UserMessage.js';
@@ -47,7 +48,7 @@ export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
   activeShellPtyId,
   embeddedShellFocused,
 }) => {
-  const itemForDisplay = escapeAnsiCtrlCodes(item);
+  const itemForDisplay = useMemo(() => escapeAnsiCtrlCodes(item), [item]);
 
   return (
     <Box flexDirection="column" key={itemForDisplay.id}>
