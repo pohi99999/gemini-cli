@@ -15,6 +15,7 @@ import { ErrorMessage } from './messages/ErrorMessage.js';
 import { ToolGroupMessage } from './messages/ToolGroupMessage.js';
 import { GeminiMessageContent } from './messages/GeminiMessageContent.js';
 import { CompressionMessage } from './messages/CompressionMessage.js';
+import { WarningMessage } from './messages/WarningMessage.js';
 import { Box } from 'ink';
 import { AboutBox } from './AboutBox.js';
 import { StatsDisplay } from './StatsDisplay.js';
@@ -33,7 +34,7 @@ interface HistoryItemDisplayProps {
   isFocused?: boolean;
   commands?: readonly SlashCommand[];
   activeShellPtyId?: number | null;
-  shellFocused?: boolean;
+  embeddedShellFocused?: boolean;
 }
 
 export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
@@ -44,7 +45,7 @@ export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
   commands,
   isFocused = true,
   activeShellPtyId,
-  shellFocused,
+  embeddedShellFocused,
 }) => {
   const itemForDisplay = escapeAnsiCtrlCodes(item);
 
@@ -75,6 +76,9 @@ export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
       )}
       {itemForDisplay.type === 'info' && (
         <InfoMessage text={itemForDisplay.text} />
+      )}
+      {itemForDisplay.type === 'warning' && (
+        <WarningMessage text={itemForDisplay.text} />
       )}
       {itemForDisplay.type === 'error' && (
         <ErrorMessage text={itemForDisplay.text} />
@@ -109,7 +113,7 @@ export const HistoryItemDisplay: React.FC<HistoryItemDisplayProps> = ({
           terminalWidth={terminalWidth}
           isFocused={isFocused}
           activeShellPtyId={activeShellPtyId}
-          shellFocused={shellFocused}
+          embeddedShellFocused={embeddedShellFocused}
         />
       )}
       {itemForDisplay.type === 'compression' && (

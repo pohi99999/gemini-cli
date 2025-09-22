@@ -10,7 +10,10 @@ import { HistoryItemDisplay } from './HistoryItemDisplay.js';
 import { type HistoryItem, ToolCallStatus } from '../types.js';
 import { MessageType } from '../types.js';
 import { SessionStatsProvider } from '../contexts/SessionContext.js';
-import type { Config, ToolExecuteConfirmationDetails } from '@google/gemini-cli-core';
+import type {
+  Config,
+  ToolExecuteConfirmationDetails,
+} from '@google/gemini-cli-core';
 import { ToolGroupMessage } from './messages/ToolGroupMessage.js';
 
 // Mock child components
@@ -165,7 +168,7 @@ describe('<HistoryItemDisplay />', () => {
             title: 'Run Shell Command',
             command: 'echo "\u001b[31mhello\u001b[0m"',
             rootCommand: 'echo',
-            onConfirm: async () => {}
+            onConfirm: async () => {},
           },
         },
       ],
@@ -180,11 +183,11 @@ describe('<HistoryItemDisplay />', () => {
     );
 
     const passedProps = vi.mocked(ToolGroupMessage).mock.calls[0][0];
-    const confirmationDetails =
-      passedProps.toolCalls[0].confirmationDetails as ToolExecuteConfirmationDetails;
+    const confirmationDetails = passedProps.toolCalls[0]
+      .confirmationDetails as ToolExecuteConfirmationDetails;
 
     expect(confirmationDetails.command).toBe(
-      'echo "\\u001b[31mhello\\u001b[0m"'
+      'echo "\\u001b[31mhello\\u001b[0m"',
     );
   });
 });
