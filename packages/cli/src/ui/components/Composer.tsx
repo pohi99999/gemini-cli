@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Text , useIsScreenReaderEnabled } from 'ink';
+import { Box, Text, useIsScreenReaderEnabled } from 'ink';
 import { useMemo } from 'react';
 import { LoadingIndicator } from './LoadingIndicator.js';
 import { ContextSummaryDisplay } from './ContextSummaryDisplay.js';

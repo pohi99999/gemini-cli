@@ -27,6 +27,7 @@ export const useFooterProps = () => {
     promptTokenCount: uiState.sessionStats.lastPromptTokenCount,
     nightly: uiState.nightly,
     isTrustedFolder: uiState.isTrustedFolder,
-    vimMode: vimEnabled ? vimMode : undefined,
+    // These are incompatible.
+    vimMode: undefined,
   };
 };
