@@ -6,10 +6,9 @@
 
 import { expect, test } from 'vitest';
 import { TestRig } from './test-helper.js';
-import { rmSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const rig = new TestRig();
 const extension = `{
   "name": "test-extension",
   "version": "0.0.1"
@@ -21,6 +20,7 @@ const extensionUpdate = `{
 }`;
 
 test('installs a local extension, verifies a command, and updates it', async () => {
+  const rig = new TestRig();
   rig.setup('extension install test');
   const testServerPath = join(rig.testDir!, 'gemini-extension.json');
   writeFileSync(testServerPath, extension);
@@ -49,5 +49,4 @@ test('installs a local extension, verifies a command, and updates it', async () 
   await rig.runCommand(['extensions', 'uninstall', 'test-extension']);
 
   await rig.cleanup();
-  rmSync(rig.testDir!, { recursive: true, force: true });
 });
