@@ -114,7 +114,10 @@ export class BaseLlmClient {
         }
       };
 
-      const result = await retryWithBackoff(apiCall, { shouldRetryOnContent });
+      const result = await retryWithBackoff(apiCall, {
+        shouldRetryOnContent,
+        maxAttempts: 3,
+      });
 
       // If we are here, the content is valid (not empty and parsable).
       return JSON.parse(
