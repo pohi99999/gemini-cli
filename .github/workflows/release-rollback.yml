@@ -1,4 +1,4 @@
-name: 'Release:RollbackChange Tags'
+name: 'Release: RollbackChange'
 
 on:
   workflow_dispatch:
