@@ -49,7 +49,7 @@ jobs:
           scope: '@google'
 
       - name: 'Add Github Rollback tag'
-        if: "${{ inputs.dry-run == 'false' }}"
+        if: "${{ github.event.inputs.dry-run == 'false' }}"
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
@@ -65,7 +65,7 @@ jobs:
           wombat-token-cli: '${{ secrets.WOMBAT_TOKEN_CLI }}'
 
       - name: 'Delete Github release'
-        if: "${{ inputs.dry-run == 'false' }}"
+        if: "${{ github.event.inputs.dry-run == 'false' }}"
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
@@ -73,7 +73,7 @@ jobs:
 
       - name: 'Log dry run'
         if: |-
-          ${{ inputs.dry-run == 'true' }}
+          ${{ github.event.inputs.dry-run == 'true' }}
         shell: 'bash'
         run: |
-          echo "Dry run: Would have added the tag rollback and deleted the release with the tag 'rollback'."
+          echo "Dry run: Would have added the tag rollback and deleted the release with the tag rollback."
