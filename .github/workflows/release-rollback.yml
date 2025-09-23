@@ -76,4 +76,4 @@ jobs:
           ${{ inputs.dry-run == 'true' }}
         shell: 'bash'
         run: |
-          echo "Dry run: Would have added tag '${{ inputs.channel }}' to version '${{ inputs.version }}' for @google/gemini-cli and @google/gemini-cli-core. Would have added the tag rollback and deleted the release with the tag 'rollback'."
+          echo "Dry run: Would have added the tag rollback and deleted the release with the tag 'rollback'."
