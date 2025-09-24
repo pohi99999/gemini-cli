@@ -114,6 +114,10 @@ jobs:
       - name: 'Install dependencies'
         run: 'npm ci'
 
+      - name: 'Prune Docker System'
+        if: "matrix.sandbox == 'sandbox:docker'"
+        run: 'docker system prune -a -f'
+
       - name: 'Set up Docker'
         if: "matrix.sandbox == 'sandbox:docker'"
         uses: 'docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435' # ratchet:docker/setup-buildx-action@v3
@@ -122,15 +126,14 @@ jobs:
         env:
           GEMINI_API_KEY: '${{ secrets.GEMINI_API_KEY }}'
           KEEP_OUTPUT: 'true'
-          SANDBOX: '${{ matrix.sandbox }}'
           VERBOSE: 'true'
-          GEMINI_SANDBOX: 'docker'
         shell: 'bash'
         run: |
           if [[ "${{ matrix.sandbox }}" == "sandbox:docker" ]]; then
-            npm run build:sandbox
+            npm run test:integration:sandbox:docker
+          else
+            npm run test:integration:sandbox:none
           fi
-          npx vitest run --root ./integration-tests
 
   e2e_slow_platforms:
     name: 'Slow E2E - Mac'
