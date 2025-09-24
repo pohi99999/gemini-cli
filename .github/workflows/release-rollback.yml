@@ -60,7 +60,6 @@ jobs:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
         run: |
-          echo "Release version: ${{ steps.release_version.outputs.RELEASE_VERSION }}"
           echo "RELEASE_HASH=$(git rev-parse ${{ steps.release_version.outputs.RELEASE_VERSION }})" >> $GITHUB_OUTPUT
 
       - name: 'Change tag'
