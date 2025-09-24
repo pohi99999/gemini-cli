@@ -47,14 +47,14 @@ jobs:
 
     steps:
       - name: 'Checkout (fork)'
-        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # ratchet:actions/checkout@v5
         if: "github.event_name == 'pull_request_target'"
         with:
           ref: '${{ github.event.pull_request.head.sha }}'
           repository: '${{ github.event.pull_request.head.repo.full_name }}'
 
       - name: 'Checkout (internal)'
-        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # ratchet:actions/checkout@v5
         if: "github.event_name != 'pull_request_target'"
         with:
           ref: '${{ github.event.inputs.branch_ref || github.ref }}'
@@ -99,14 +99,14 @@ jobs:
     continue-on-error: true
     steps:
       - name: 'Checkout (fork)'
-        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # ratchet:actions/checkout@v5
         if: "github.event_name == 'pull_request_target'"
         with:
           ref: '${{ github.event.pull_request.head.sha }}'
           repository: '${{ github.event.pull_request.head.repo.full_name }}'
 
       - name: 'Checkout (internal)'
-        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # ratchet:actions/checkout@v5
         if: "github.event_name != 'pull_request_target'"
         with:
           ref: '${{ github.event.inputs.branch_ref || github.ref }}'
@@ -150,14 +150,14 @@ jobs:
 
     steps:
       - name: 'Checkout (fork)'
-        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # ratchet:actions/checkout@v5
         if: "github.event_name == 'pull_request_target'"
         with:
           ref: '${{ github.event.pull_request.head.sha }}'
           repository: '${{ github.event.pull_request.head.repo.full_name }}'
 
       - name: 'Checkout (internal)'
-        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # ratchet:actions/checkout@v5
         if: "github.event_name != 'pull_request_target'"
         with:
           ref: '${{ github.event.inputs.branch_ref || github.ref }}'
