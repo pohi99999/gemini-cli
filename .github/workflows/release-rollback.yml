@@ -76,7 +76,8 @@ jobs:
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
-        run: gh release delete '${{ steps.release_version.outputs.RELEASE_VERSION }}' --yes
+        run: |
+          gh release delete '${{ steps.release_version.outputs.RELEASE_VERSION }}' --yes
 
       - name: 'Log Github Release Delete dry run'
         if: |-
@@ -90,7 +91,8 @@ jobs:
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
-        run: git tag rollback '${{ steps.release_hash.outputs.RELEASE_HASH }}'
+        run: |
+          git tag rollback '${{ steps.release_hash.outputs.RELEASE_HASH }}'
 
       - name: 'Log Github Rollback Tag dry run'
         if: "${{ github.event.inputs.dry-run == 'true' }}"
