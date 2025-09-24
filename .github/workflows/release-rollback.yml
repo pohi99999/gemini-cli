@@ -49,8 +49,9 @@ jobs:
           scope: '@google'
 
       - name: 'Get Current Release Version'
+        id: 'release_version'
         shell: 'bash'
-        run: echo "RELEASE_VERSION=$(npm view @google/gemini-cli dist-tags.${{ github.event.inputs.channel }})" >> $GITHUB_ENV
+        run: echo "RELEASE_VERSION=$(npm view @google/gemini-cli dist-tags.${{ github.event.inputs.channel }})" >> $GITHUB_OUTPUT
 
       - name: 'Change tag'
         uses: './.github/actions/tag-npm-release'
@@ -66,11 +67,11 @@ jobs:
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
-        run: gh release delete $RELEASE_VERSION --yes
+        run: gh release delete ${{ steps.release_version.outputs.RELEASE_VERSION }} --yes
 
       - name: 'Log Github Release Delete dry run'
         if: |-
           ${{ github.event.inputs.dry-run == 'true' }}
         shell: 'bash'
         run: |
-          echo "Dry run: Would have deleted the github release with tag $RELEASE_VERSION"
+          echo "Dry run: Would have deleted the github release with tag ${{ steps.release_version.outputs.RELEASE_VERSION }}"
