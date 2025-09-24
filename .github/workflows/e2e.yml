@@ -127,10 +127,10 @@ jobs:
           GEMINI_SANDBOX: 'docker'
         shell: 'bash'
         run: |
-          if [[ "${{ matrix.sandbox }}" == "sandbox:docker" ]]; then
-            npm run build:sandbox
-          fi
-          npx vitest run --root ./integration-tests
+          npm run build
+          npm run test:ci
+          npm run test:integration:sandbox:none
+          npm run test:integration:sandbox:docker
 
   e2e_slow_platforms:
     name: 'Slow E2E - Mac'
