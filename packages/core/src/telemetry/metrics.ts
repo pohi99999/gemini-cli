@@ -19,8 +19,12 @@ import {
   METRIC_INVALID_CHUNK_COUNT,
   METRIC_CONTENT_RETRY_COUNT,
   METRIC_CONTENT_RETRY_FAILURE_COUNT,
+  METRIC_MODEL_ROUTING_LATENCY,
+  METRIC_MODEL_ROUTING_FAILURE_COUNT,
+  METRIC_MODEL_SLASH_COMMAND_CALL_COUNT,
 } from './constants.js';
 import type { Config } from '../config/config.js';
+import type { ModelRoutingEvent, ModelSlashCommandEvent } from './types.js';
 
 export enum FileOperation {
   CREATE = 'create',
@@ -39,6 +43,9 @@ let chatCompressionCounter: Counter | undefined;
 let invalidChunkCounter: Counter | undefined;
 let contentRetryCounter: Counter | undefined;
 let contentRetryFailureCounter: Counter | undefined;
+let modelRoutingLatencyHistogram: Histogram | undefined;
+let modelRoutingFailureCounter: Counter | undefined;
+let modelSlashCommandCallCounter: Counter | undefined;
 let isMetricsInitialized = false;
 
 function getCommonAttributes(config: Config): Attributes {
@@ -110,6 +117,28 @@ export function initializeMetrics(config: Config): void {
       valueType: ValueType.INT,
     },
   );
+  modelRoutingLatencyHistogram = meter.createHistogram(
+    METRIC_MODEL_ROUTING_LATENCY,
+    {
+      description: 'Latency of model routing decisions in milliseconds.',
+      unit: 'ms',
+      valueType: ValueType.INT,
+    },
+  );
+  modelRoutingFailureCounter = meter.createCounter(
+    METRIC_MODEL_ROUTING_FAILURE_COUNT,
+    {
+      description: 'Counts model routing failures.',
+      valueType: ValueType.INT,
+    },
+  );
+  modelSlashCommandCallCounter = meter.createCounter(
+    METRIC_MODEL_SLASH_COMMAND_CALL_COUNT,
+    {
+      description: 'Counts model slash command calls.',
+      valueType: ValueType.INT,
+    },
+  );
 
   const sessionCounter = meter.createCounter(METRIC_SESSION_COUNT, {
     description: 'Count of CLI sessions started.',
@@ -174,7 +203,6 @@ export function recordApiResponseMetrics(
   model: string,
   durationMs: number,
   statusCode?: number | string,
-  error?: string,
 ): void {
   if (
     !apiRequestCounter ||
@@ -185,7 +213,7 @@ export function recordApiResponseMetrics(
   const metricAttributes: Attributes = {
     ...getCommonAttributes(config),
     model,
-    status_code: statusCode ?? (error ? 'error' : 'ok'),
+    status_code: statusCode ?? 'ok',
   };
   apiRequestCounter.add(1, metricAttributes);
   apiRequestLatencyHistogram.record(durationMs, {
@@ -266,4 +294,41 @@ export function recordContentRetry(config: Config): void {
 export function recordContentRetryFailure(config: Config): void {
   if (!contentRetryFailureCounter || !isMetricsInitialized) return;
   contentRetryFailureCounter.add(1, getCommonAttributes(config));
+}
+
+export function recordModelSlashCommand(
+  config: Config,
+  event: ModelSlashCommandEvent,
+): void {
+  if (!modelSlashCommandCallCounter || !isMetricsInitialized) return;
+  modelSlashCommandCallCounter.add(1, {
+    ...getCommonAttributes(config),
+    'slash_command.model.model_name': event.model_name,
+  });
+}
+
+export function recordModelRoutingMetrics(
+  config: Config,
+  event: ModelRoutingEvent,
+): void {
+  if (
+    !modelRoutingLatencyHistogram ||
+    !modelRoutingFailureCounter ||
+    !isMetricsInitialized
+  )
+    return;
+
+  modelRoutingLatencyHistogram.record(event.routing_latency_ms, {
+    ...getCommonAttributes(config),
+    'routing.decision_model': event.decision_model,
+    'routing.decision_source': event.decision_source,
+  });
+
+  if (event.failed) {
+    modelRoutingFailureCounter.add(1, {
+      ...getCommonAttributes(config),
+      'routing.decision_source': event.decision_source,
+      'routing.error_message': event.error_message,
+    });
+  }
 }

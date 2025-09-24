@@ -19,6 +19,16 @@ export {
   isTelemetrySdkInitialized,
 } from './sdk.js';
 export {
+  resolveTelemetrySettings,
+  parseBooleanEnvFlag,
+  parseTelemetryTargetValue,
+} from './config.js';
+export {
+  GcpTraceExporter,
+  GcpMetricExporter,
+  GcpLogExporter,
+} from './gcp-exporters.js';
+export {
   logCliConfiguration,
   logUserPrompt,
   logToolCall,
@@ -30,6 +40,10 @@ export {
   logConversationFinishedEvent,
   logKittySequenceOverflow,
   logChatCompression,
+  logToolOutputTruncated,
+  logExtensionEnable,
+  logExtensionInstallEvent,
+  logExtensionUninstall,
 } from './loggers.js';
 export type { SlashCommandEvent, ChatCompressionEvent } from './types.js';
 export {
@@ -44,6 +58,7 @@ export {
   ToolCallEvent,
   ConversationFinishedEvent,
   KittySequenceOverflowEvent,
+  ToolOutputTruncatedEvent,
 } from './types.js';
 export { makeSlashCommandEvent, makeChatCompressionEvent } from './types.js';
 export type { TelemetryEvent } from './types.js';
@@ -52,3 +67,10 @@ export { SemanticAttributes } from '@opentelemetry/semantic-conventions';
 export * from './uiTelemetry.js';
 export { HighWaterMarkTracker } from './high-water-mark-tracker.js';
 export { RateLimiter } from './rate-limiter.js';
+export { ActivityType } from './activity-types.js';
+export {
+  ActivityDetector,
+  getActivityDetector,
+  recordUserActivity,
+  isUserActive,
+} from './activity-detector.js';
