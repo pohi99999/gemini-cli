@@ -48,12 +48,9 @@ jobs:
           registry-url: 'https://wombat-dressing-room.appspot.com'
           scope: '@google'
 
-      - name: 'Add Github Rollback tag'
-        if: "${{ github.event.inputs.dry-run == 'false' }}"
-        env:
-          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+      - name: 'Get Current Release Version'
         shell: 'bash'
-        run: git tag rollback
+        run: RELEASE_VERSION=$(npm view @google/gemini-cli dist-tags.${{ github.event.inputs.channel }})
 
       - name: 'Change tag'
         uses: './.github/actions/tag-npm-release'
@@ -69,11 +66,11 @@ jobs:
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
-        run: gh release delete rollback --cleanup-tag --yes
+        run: gh release delete $RELEASE_VERSION --cleanup-tag --yes
 
       - name: 'Log dry run'
         if: |-
           ${{ github.event.inputs.dry-run == 'true' }}
         shell: 'bash'
         run: |
-          echo "Dry run: Would have added the tag rollback and deleted the release with the tag rollback."
+          echo "Dry run: Would have added deleted the releas with tag $RELEASE_VERSION"
