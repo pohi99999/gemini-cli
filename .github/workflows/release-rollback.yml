@@ -61,16 +61,16 @@ jobs:
           wombat-token-core: '${{ secrets.WOMBAT_TOKEN_CORE }}'
           wombat-token-cli: '${{ secrets.WOMBAT_TOKEN_CLI }}'
 
-      - name: 'Delete Github release'
+      - name: 'Delete Github Release'
         if: "${{ github.event.inputs.dry-run == 'false' }}"
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         shell: 'bash'
         run: gh release delete $RELEASE_VERSION --cleanup-tag --yes
 
-      - name: 'Log dry run'
+      - name: 'Log Github Release Delete dry run'
         if: |-
           ${{ github.event.inputs.dry-run == 'true' }}
         shell: 'bash'
         run: |
-          echo "Dry run: Would have added deleted the releas with tag $RELEASE_VERSION"
+          echo "Dry run: Would have deleted the github release with tag $RELEASE_VERSION"
