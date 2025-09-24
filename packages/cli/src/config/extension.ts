@@ -369,9 +369,10 @@ export async function requestConsentNonInteractive(
   consentDescription: string,
 ): Promise<boolean> {
   console.info(consentDescription);
-  return await promptForContinuationNonInteractive(
-    'Do you want to continue? [Y/n]:',
+  const result = await promptForContinuationNonInteractive(
+    'Do you want to continue? [Y/n]: ',
   );
+  return result;
 }
 
 /**
@@ -622,7 +623,7 @@ async function maybeRequestConsentOrFail(
       return;
     }
   }
-  if (!requestConsent(extensionConsent)) {
+  if (!(await requestConsent(extensionConsent))) {
     throw new Error('Installation cancelled by user.');
   }
 }

@@ -260,10 +260,13 @@ describe('extension tests', () => {
       });
       fs.writeFileSync(path.join(sourceExtDir, 'context.md'), 'linked context');
 
-      const extensionName = await installExtension({
-        source: sourceExtDir,
-        type: 'link',
-      });
+      const extensionName = await installExtension(
+        {
+          source: sourceExtDir,
+          type: 'link',
+        },
+        async (_) => true,
+      );
 
       expect(extensionName).toEqual('my-linked-extension');
       const extensions = loadExtensions();
