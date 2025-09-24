@@ -33,6 +33,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event_name == 'merge_group' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event.label.name == 'maintainer:e2e:ok')
     steps:
@@ -69,6 +70,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event_name == 'merge_group' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event.label.name == 'maintainer:e2e:ok')
     runs-on: 'gemini-cli-ubuntu-16-core'
@@ -137,6 +139,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event_name == 'merge_group' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event.label.name == 'maintainer:e2e:ok')
     runs-on: '${{ matrix.os }}'
@@ -196,6 +199,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event_name == 'merge_group' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event.label.name == 'maintainer:e2e:ok')
     runs-on: 'gemini-cli-windows-16-core'
@@ -261,6 +265,7 @@ jobs:
       always() && (
         github.event_name == 'push' ||
         github.event_name == 'merge_group' ||
+        github.event_name == 'workflow_dispatch' ||
         (github.event.pull_request.head.repo.full_name == github.repository) ||
         (github.event.label.name == 'maintainer:e2e:ok')
       )
