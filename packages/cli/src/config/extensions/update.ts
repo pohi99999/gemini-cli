@@ -53,11 +53,11 @@ export async function updateExtension(
 
   const tempDir = await ExtensionStorage.createTmpDir();
   try {
+    await copyExtension(extension.path, tempDir);
     const previousExtensionConfig = await loadExtensionConfig({
       extensionDir: extension.path,
       workspaceDir: cwd,
     });
-    await copyExtension(extension.path, tempDir);
     await uninstallExtension(extension.name, cwd);
     await installExtension(
       installMetadata,
