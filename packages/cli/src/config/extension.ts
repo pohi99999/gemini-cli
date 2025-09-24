@@ -37,6 +37,7 @@ import {
 } from './extensions/github.js';
 import type { LoadExtensionContext } from './extensions/variableSchema.js';
 import { ExtensionEnablementManager } from './extensions/extensionEnablement.js';
+import type { UseHistoryManagerReturn } from '../ui/hooks/useHistoryManager.js';
 
 export const EXTENSIONS_DIRECTORY_NAME = path.join(GEMINI_DIR, 'extensions');
 
@@ -111,6 +112,7 @@ export async function copyExtension(
 
 export async function performWorkspaceExtensionMigration(
   extensions: Extension[],
+  requestConsent: (consent: string) => Promise<boolean>,
 ): Promise<string[]> {
   const failedInstallNames: string[] = [];
 
@@ -120,7 +122,7 @@ export async function performWorkspaceExtensionMigration(
         source: extension.path,
         type: 'local',
       };
-      await installExtension(installMetadata);
+      await installExtension(installMetadata, requestConsent);
     } catch (_) {
       failedInstallNames.push(extension.config.name);
     }
@@ -355,11 +357,58 @@ export function annotateActiveExtensions(
 }
 
 /**
- * Asks users a prompt and awaits for a y/n response
+ * Requests consent from the user to perform an action, by reading a Y/n
+ * character from stdin.
+ *
+ * This should not be called from interactive mode as it will break the CLI.
+ *
+ * @param consentDescription The description of the thing they will be consenting to.
+ * @returns boolean, whether they consented or not.
+ */
+export async function requestConsentNonInteractive(
+  consentDescription: string,
+): Promise<boolean> {
+  console.info(consentDescription);
+  return await promptForContinuationNonInteractive(
+    'Do you want to continue? [Y/n]:',
+  );
+}
+
+/**
+ * Requests consent from the user to perform an action, in interactive mode.
+ *
+ * This should not be called from non-interactive mode as it will not work.
+ *
+ * @param consentDescription The description of the thing they will be consenting to.
+ * @returns boolean, whether they consented or not.
+ */
+export async function requestConsentInteractive(
+  consentDescription: string,
+  addHistoryItem: UseHistoryManagerReturn['addItem'],
+): Promise<boolean> {
+  addHistoryItem(
+    {
+      type: 'info',
+      text:
+        consentDescription +
+        '\n\nConsenting to updates not implemented in interactive mode, please use `gemini extensions update <extension>` to update this extension.',
+    },
+    Date.now(),
+  );
+  return false;
+}
+
+/**
+ * Asks users a prompt and awaits for a y/n response on stdin.
+ *
+ * This should not be called from interactive mode as it will break the CLI.
+ *
  * @param prompt A yes/no prompt to ask the user
  * @returns Whether or not the user answers 'y' (yes). Defaults to 'yes' on enter.
  */
-async function promptForContinuation(prompt: string): Promise<boolean> {
+async function promptForContinuationNonInteractive(
+  prompt: string,
+): Promise<boolean> {
   const readline = await import('node:readline');
   const rl = readline.createInterface({
     input: process.stdin,
@@ -376,7 +425,7 @@ async function promptForContinuation(prompt: string): Promise<boolean> {
 
 export async function installExtension(
   installMetadata: ExtensionInstallMetadata,
-  askConsentIfChanged: boolean = false,
+  requestConsent: (consent: string) => Promise<boolean>,
   cwd: string = process.cwd(),
   previousExtensionConfig?: ExtensionConfig,
 ): Promise<string> {
@@ -450,9 +499,11 @@ export async function installExtension(
           `Extension "${newExtensionName}" is already installed. Please uninstall it first.`,
         );
       }
-      if (askConsentIfChanged) {
-        await maybeRequestConsent(newExtensionConfig, previousExtensionConfig);
-      }
+      await maybeRequestConsentOrFail(
+        newExtensionConfig,
+        requestConsent,
+        previousExtensionConfig,
+      );
       await fs.promises.mkdir(destinationPath, { recursive: true });
 
       if (
@@ -557,8 +608,9 @@ function extensionConsentString(extensionConfig: ExtensionConfig): string {
  *
  * Throws if the user does not consent.
  */
-async function maybeRequestConsent(
+async function maybeRequestConsentOrFail(
   extensionConfig: ExtensionConfig,
+  requestConsent: (consent: string) => Promise<boolean>,
   previousExtensionConfig?: ExtensionConfig,
 ) {
   const extensionConsent = extensionConsentString(extensionConfig);
@@ -570,11 +622,7 @@ async function maybeRequestConsent(
       return;
     }
   }
-  console.info(extensionConsent);
-  const shouldContinue = await promptForContinuation(
-    'Do you want to continue? [Y/n]: ',
-  );
-  if (!shouldContinue) {
+  if (!requestConsent(extensionConsent)) {
     throw new Error('Installation cancelled by user.');
   }
 }

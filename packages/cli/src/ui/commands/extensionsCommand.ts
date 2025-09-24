@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { requestConsentInteractive } from '../../config/extension.js';
 import {
   updateAllUpdatableExtensions,
   type ExtensionUpdateInfo,
@@ -52,7 +53,8 @@ async function updateAction(context: CommandContext, args: string) {
       updateInfos = await updateAllUpdatableExtensions(
         context.services.config!.getWorkingDir(),
         // We don't have the ability to prompt for consent yet in this flow.
-        false,
+        (description) =>
+          requestConsentInteractive(description, context.ui.addItem),
         context.services.config!.getExtensions(),
         context.ui.extensionsUpdateState,
         context.ui.setExtensionsUpdateState,
@@ -77,7 +79,8 @@ async function updateAction(context: CommandContext, args: string) {
         const updateInfo = await updateExtension(
           extension,
           workingDir,
-          false, // We don't have the ability to prompt for consent in this flow.
+          (description) =>
+            requestConsentInteractive(description, context.ui.addItem),
           context.ui.extensionsUpdateState.get(extension.name) ??
             ExtensionUpdateState.UNKNOWN,
           (updateState) => {

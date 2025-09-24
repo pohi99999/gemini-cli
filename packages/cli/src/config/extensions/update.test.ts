@@ -140,7 +140,7 @@ describe('update tests', () => {
       const updateInfo = await updateExtension(
         extension,
         tempHomeDir,
-        false,
+        async (_) => true,
         ExtensionUpdateState.UPDATE_AVAILABLE,
         () => {},
       );
@@ -198,7 +198,7 @@ describe('update tests', () => {
       await updateExtension(
         extension,
         tempHomeDir,
-        false,
+        async (_) => true,
         ExtensionUpdateState.UPDATE_AVAILABLE,
         setExtensionUpdateState,
       );
@@ -241,7 +241,7 @@ describe('update tests', () => {
         updateExtension(
           extension,
           tempHomeDir,
-          false,
+          async (_) => true,
           ExtensionUpdateState.UPDATE_AVAILABLE,
           setExtensionUpdateState,
         ),

@@ -14,6 +14,7 @@ import {
   checkForAllExtensionUpdates,
   updateExtension,
 } from '../../config/extensions/update.js';
+import { requestConsentInteractive } from '../../config/extension.js';
 
 export const useExtensionUpdates = (
   extensions: GeminiCLIExtension[],
@@ -43,7 +44,7 @@ export const useExtensionUpdates = (
           updateExtension(
             extension,
             cwd,
-            false, // We don't have the ability to prompt for consent yet for this flow
+            (description) => requestConsentInteractive(description, addItem),
             currentState,
             (newState) => {
               setExtensionsUpdateState((prev) => {

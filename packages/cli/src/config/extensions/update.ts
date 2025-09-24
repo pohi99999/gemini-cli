@@ -29,7 +29,7 @@ export interface ExtensionUpdateInfo {
 export async function updateExtension(
   extension: GeminiCLIExtension,
   cwd: string = process.cwd(),
-  askConsentIfChanged: boolean,
+  requestConsent: (consent: string) => Promise<boolean>,
   currentState: ExtensionUpdateState,
   setExtensionUpdateState: (updateState: ExtensionUpdateState) => void,
 ): Promise<ExtensionUpdateInfo | undefined> {
@@ -61,7 +61,7 @@ export async function updateExtension(
     await uninstallExtension(extension.name, cwd);
     await installExtension(
       installMetadata,
-      askConsentIfChanged,
+      requestConsent,
       cwd,
       previousExtensionConfig,
     );
@@ -96,7 +96,7 @@ export async function updateExtension(
 
 export async function updateAllUpdatableExtensions(
   cwd: string = process.cwd(),
-  askConsentIfChanged: boolean,
+  requestConsent: (consent: string) => Promise<boolean>,
   extensions: GeminiCLIExtension[],
   extensionsState: Map<string, ExtensionUpdateState>,
   setExtensionsUpdateState: Dispatch<
@@ -115,7 +115,7 @@ export async function updateAllUpdatableExtensions(
           updateExtension(
             extension,
             cwd,
-            askConsentIfChanged,
+            requestConsent,
             extensionsState.get(extension.name)!,
             (updateState) => {
               setExtensionsUpdateState((prev) => {
