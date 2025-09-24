@@ -51,6 +51,8 @@ async function updateAction(context: CommandContext, args: string) {
     if (all) {
       updateInfos = await updateAllUpdatableExtensions(
         context.services.config!.getWorkingDir(),
+        // We don't have the ability to prompt for consent yet in this flow.
+        false,
         context.services.config!.getExtensions(),
         context.ui.extensionsUpdateState,
         context.ui.setExtensionsUpdateState,
@@ -75,6 +77,7 @@ async function updateAction(context: CommandContext, args: string) {
         const updateInfo = await updateExtension(
           extension,
           workingDir,
+          false, // We don't have the ability to prompt for consent in this flow.
           context.ui.extensionsUpdateState.get(extension.name) ??
             ExtensionUpdateState.UNKNOWN,
           (updateState) => {

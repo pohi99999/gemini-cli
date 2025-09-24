@@ -376,8 +376,9 @@ async function promptForContinuation(prompt: string): Promise<boolean> {
 
 export async function installExtension(
   installMetadata: ExtensionInstallMetadata,
-  askConsent: boolean = false,
+  askConsentIfChanged: boolean = false,
   cwd: string = process.cwd(),
+  previousExtensionConfig?: ExtensionConfig,
 ): Promise<string> {
   const telemetryConfig = getTelemetryConfig(cwd);
   let newExtensionConfig: ExtensionConfig | null = null;
@@ -449,8 +450,8 @@ export async function installExtension(
           `Extension "${newExtensionName}" is already installed. Please uninstall it first.`,
         );
       }
-      if (askConsent) {
-        await requestConsent(newExtensionConfig);
+      if (askConsentIfChanged) {
+        await maybeRequestConsent(newExtensionConfig, previousExtensionConfig);
       }
       await fs.promises.mkdir(destinationPath, { recursive: true });
 
@@ -512,7 +513,11 @@ export async function installExtension(
   }
 }
 
-async function requestConsent(extensionConfig: ExtensionConfig) {
+/**
+ * Builds a consent string for installing an extension based on it's
+ * extensionConfig.
+ */
+function extensionConsentString(extensionConfig: ExtensionConfig): string {
   const output: string[] = [];
   const mcpServerEntries = Object.entries(extensionConfig.mcpServers || {});
   output.push('Extensions may introduce unexpected behavior.');
@@ -540,7 +545,32 @@ async function requestConsent(extensionConfig: ExtensionConfig) {
       `This extension will exclude the following core tools: ${extensionConfig.excludeTools}`,
     );
   }
-  console.info(output.join('\n'));
+  return output.join('\n');
+}
+
+/**
+ * Requests consent from the user to install an extension (extensionConfig), if
+ * there is any difference between the consent string for `extensionConfig` and
+ * `previousExtensionConfig`.
+ *
+ * Always requests consent if previousExtensionConfig is null.
+ *
+ * Throws if the user does not consent.
+ */
+async function maybeRequestConsent(
+  extensionConfig: ExtensionConfig,
+  previousExtensionConfig?: ExtensionConfig,
+) {
+  const extensionConsent = extensionConsentString(extensionConfig);
+  if (previousExtensionConfig) {
+    const previousExtensionConsent = extensionConsentString(
+      previousExtensionConfig,
+    );
+    if (previousExtensionConsent === extensionConsent) {
+      return;
+    }
+  }
+  console.info(extensionConsent);
   const shouldContinue = await promptForContinuation(
     'Do you want to continue? [Y/n]: ',
   );

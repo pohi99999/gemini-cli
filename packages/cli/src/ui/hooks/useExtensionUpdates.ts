@@ -40,13 +40,19 @@ export const useExtensionUpdates = (
           continue;
         }
         if (extension.installMetadata?.autoUpdate) {
-          updateExtension(extension, cwd, currentState, (newState) => {
-            setExtensionsUpdateState((prev) => {
-              const finalState = new Map(prev);
-              finalState.set(extension.name, newState);
-              return finalState;
-            });
-          })
+          updateExtension(
+            extension,
+            cwd,
+            false, // We don't have the ability to prompt for consent yet for this flow
+            currentState,
+            (newState) => {
+              setExtensionsUpdateState((prev) => {
+                const finalState = new Map(prev);
+                finalState.set(extension.name, newState);
+                return finalState;
+              });
+            },
+          )
             .then((result) => {
               if (!result) return;
               addItem(
