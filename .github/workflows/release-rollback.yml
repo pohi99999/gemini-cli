@@ -52,7 +52,7 @@ jobs:
         id: 'release_version'
         shell: 'bash'
         run: |
-          echo "RELEASE_VERSION=$(npm view @google/gemini-cli dist-tags.${{ github.event.inputs.channel }})" >> $GITHUB_OUTPUT
+          echo "RELEASE_VERSION=v$(npm view @google/gemini-cli dist-tags.${{ github.event.inputs.channel }})" >> $GITHUB_OUTPUT
 
       - name: 'Get Current Release Commit Hash'
         id: 'release_hash'
