@@ -44,6 +44,8 @@ export {
   logExtensionEnable,
   logExtensionInstallEvent,
   logExtensionUninstall,
+  logExtensionUpdateEvent,
+  logWebFetchFallbackAttempt,
 } from './loggers.js';
 export type { SlashCommandEvent, ChatCompressionEvent } from './types.js';
 export {
@@ -59,6 +61,8 @@ export {
   ConversationFinishedEvent,
   KittySequenceOverflowEvent,
   ToolOutputTruncatedEvent,
+  WebFetchFallbackAttemptEvent,
+  ToolCallDecision,
 } from './types.js';
 export { makeSlashCommandEvent, makeChatCompressionEvent } from './types.js';
 export type { TelemetryEvent } from './types.js';
@@ -113,6 +117,7 @@ export {
   recordPerformanceRegression,
   recordBaselineComparison,
   isPerformanceMonitoringActive,
+  recordFlickerFrame,
   // Performance monitoring types
   PerformanceMetricType,
   MemoryMetricType,
